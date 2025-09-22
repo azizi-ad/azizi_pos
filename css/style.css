@@ -234,3 +234,16 @@ dialog .form {
   #receiptHost{position:static;display:block !important}
   .receipt{border:0}
 }
+
+/* Gunakan tinggi layar yang benar di mobile */
+.full-height { min-height: calc(var(--vh, 1vh) * 100); }
+
+/* Hindari notch: mis. untuk footer fixed */
+.footer-fixed { padding-bottom: calc(12px + var(--safe-bottom, 0px)); }
+
+/* Komponen mengecil di HP */
+@media (max-width: 640px) {
+  .grid { grid-template-columns: 1fr !important; }
+  .hide-on-mobile { display: none !important; }
+}
+
