@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Produk — Azizi POS</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="products">
+<header class="topbar">
+  <div class="brand">Azizi POS — Offline</div>
+  <nav class="nav">
+    <a href="dashboard.html" id="nav-dashboard">Dashboard</a>
+    <a href="products.html" id="nav-products">Produk</a>
+    <a href="purchase.html" id="nav-purchase">Stok IN</a>
+    <a href="pos.html" id="nav-pos">POS</a>
+    <a href="reports.html" id="nav-reports">Laporan</a>
+    <a href="cash.html" id="nav-cash">Kasir</a>
+    <a href="settings.html" id="nav-settings">Pengaturan</a>
+    <a href="backup.html" id="nav-backup">Backup</a>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="alert"><strong>Perhatian:</strong> Versi offline (HTML+CSS+JS) — data disimpan di <em>LocalStorage</em>.</div>
+
+  <section>
+    <div class="row between">
+      <h2>Produk</h2>
+      <div class="row gap wrap">
+        <input type="text" id="prodSearch" placeholder="Cari SKU/Nama...">
+        <button id="prodNew">Tambah</button>
+        <button id="prodExport" class="secondary">Export CSV</button>
+        <label class="nav a btn-file">Import CSV<input type="file" id="prodImport" accept=".csv" style="display:none"></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <table id="prodTable">
+        <thead><tr><th>SKU</th><th>Nama</th><th>Harga</th><th>Stok</th><th>Aksi</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Dialog Tambah/Edit -->
+    <dialog id="prodDialog">
+      <form method="dialog" id="prodForm" class="form">
+        <h3 id="prodFormTitle">Tambah Produk</h3>
+        <input type="hidden" id="prodId">
+        <label>SKU</label>
+        <input type="text" id="prodSku" required>
+        <small class="hint">SKU harus unik.</small>
+        <label>Nama</label>
+        <input type="text" id="prodName" required>
+        <label>Harga (Rp)</label>
+        <input type="number" id="prodPrice" min="0" required>
+        <label>Stok</label>
+        <input type="number" id="prodStock" min="0" required>
+        <menu class="row end gap">
+          <button value="cancel" class="secondary">Batal</button>
+          <button value="default">Simpan</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <!-- Dialog Stock Opname -->
+    <dialog id="opnameDialog">
+      <form method="dialog" id="opnameForm" class="form">
+        <h3>Stock Opname</h3>
+        <input type="hidden" id="opnameId">
+        <div>Produk: <strong id="opnameName"></strong></div>
+        <label>Stok Sistem</label><input type="number" id="opnameSys" disabled>
+        <label>Hasil Hitung Fisik</label><input type="number" id="opnameCount" min="0" required>
+        <label>Catatan</label><input type="text" id="opnameNote" value="Stock Opname">
+        <menu class="row end gap">
+          <button value="cancel" class="secondary">Batal</button>
+          <button value="default">Simpan</button>
+        </menu>
+      </form>
+    </dialog>
+  </section>
+</main>
+
+<footer class="footer">
+  <small>&copy; <span id="year"></span> Azizi POS — Offline HTML+CSS+JS.</small>
+</footer>
+
+<script src="js/core.js"></script>
+<script>
+document.getElementById('nav-products')?.classList.add('active');
+document.getElementById('year').textContent = new Date().getFullYear();
+
+(function(){
+  if(!window.DB || !window.core){
+    console.warn('core.js belum dimuat.');
+    return;
+  }
+  const $ = s => document.querySelector(s);
+  const tbody = document.querySelector("#prodTable tbody");
+
+  function render(){
+    const q = ($("#prodSearch").value||"").toLowerCase();
+    tbody.innerHTML="";
+    (DB.products||[])
+      .filter(p => (p.sku||'').toLowerCase().includes(q) || (p.name||'').toLowerCase().includes(q))
+      .sort((a,b)=> (b.updatedAt||"").localeCompare(a.updatedAt||""))
+      .forEach(p=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${core.esc(p.sku||'')}</td>
+                        <td>${core.esc(p.name||'')}</td>
+                        <td>${core.fmtRp(p.price||0)}</td>
+                        <td>${p.stock||0}</td>
+                        <td>
+                          <button data-action="edit" data-id="${p.id}">Edit</button>
+                          <button class="secondary" data-action="opname" data-id="${p.id}">Opname</button>
+                          <button class="danger" data-action="del" data-id="${p.id}">Hapus</button>
+                        </td>`;
+        tbody.appendChild(tr);
+      });
+  }
+
+  // Search
+  $("#prodSearch").addEventListener("input", render);
+
+  // New product
+  $("#prodNew").addEventListener("click", ()=>{
+    $("#prodFormTitle").textContent = "Tambah Produk";
+    $("#prodId").value = "";
+    $("#prodSku").value = ""; $("#prodName").value="";
+    $("#prodPrice").value = 0; $("#prodStock").value=0;
+    $("#prodDialog").showModal();
+  });
+
+  // Click actions in table
+  document.querySelector("#prodTable").addEventListener("click",(e)=>{
+    const id = e.target?.dataset?.id;
+    const action = e.target?.dataset?.action;
+    if(!id || !action) return;
+    const p = core.productById(id);
+    if(!p) return;
+    if(action==="edit"){
+      $("#prodFormTitle").textContent="Edit Produk";
+      $("#prodId").value = p.id; $("#prodSku").value=p.sku||""; $("#prodName").value=p.name||"";
+      $("#prodPrice").value=p.price||0; $("#prodStock").value=p.stock||0;
+      $("#prodDialog").showModal();
+    } else if(action==="del"){
+      if(confirm("Hapus produk ini?")){ core.deleteProduct(id); render(); }
+    } else if(action==="opname"){
+      $("#opnameId").value=p.id; $("#opnameName").textContent=p.name||""; $("#opnameSys").value=p.stock||0; $("#opnameCount").value=p.stock||0;
+      $("#opnameDialog").showModal();
+    }
+  });
+
+  // Save (Tambah/Edit)
+  document.querySelector("#prodDialog").addEventListener("close",()=>{
+    if($("#prodDialog").returnValue==="cancel") return;
+    const id = $("#prodId").value || core.uid();
+    const sku = $("#prodSku").value.trim();
+    const p = {
+      id, sku,
+      name: $("#prodName").value.trim(),
+      price: parseInt($("#prodPrice").value||"0",10),
+      stock: parseInt($("#prodStock").value||"0",10),
+      updatedAt: core.ts(),
+      createdAt: $("#prodId").value ? (core.productById(id)?.createdAt || core.ts()) : core.ts()
+    };
+    if(!p.sku || !p.name){ alert("SKU & Nama wajib."); return; }
+    try{
+      core.saveProduct(p);
+      render();
+    }catch(err){
+      alert(err.message||err);
+    }
+  });
+
+  // Stock Opname
+  document.querySelector("#opnameDialog").addEventListener("close",()=>{
+    if($("#opnameDialog").returnValue==="cancel") return;
+    const id = $("#opnameId").value;
+    const count = parseInt($("#opnameCount").value||"0",10);
+    const note = $("#opnameNote").value||"Stock Opname";
+    const p = core.productById(id);
+    if(!p) return;
+    const diff = count - (p.stock||0);
+    if(diff !== 0){
+      p.stock = count; p.updatedAt = core.ts(); core.saveProduct(p);
+      const mv = DB.moves || [];
+      mv.push({id:core.uid(), productId:id, qty:Math.abs(diff), type:"ADJ", note: note + " ("+(diff>0?"+":"-")+Math.abs(diff)+")", createdAt:core.ts()});
+      DB.moves = mv;
+      render();
+    }
+  });
+
+  // Export CSV
+  document.getElementById("prodExport").addEventListener("click", ()=>{
+    const rows = [["sku","name","price","stock"]];
+    (DB.products||[]).forEach(p=> rows.push([p.sku||"",p.name||"",p.price||0,p.stock||0]));
+    const csv = rows.map(r=>r.map(v=>String(v).replaceAll('"','""')).map(v=>`"${v}"`).join(",")).join("\n");
+    const blob = new Blob([csv], {type:"text/csv"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "products_export.csv"; a.click(); URL.revokeObjectURL(a.href);
+  });
+
+  // Import CSV (update by SKU)
+  document.getElementById("prodImport").addEventListener("change", async (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const text = await f.text();
+    const lines = text.split(/\r?\n/).filter(x=>x.trim().length);
+    const head = lines.shift().split(",").map(s=>s.replace(/^"|"$/g,"").trim().toLowerCase());
+    const idx = {sku:head.indexOf("sku"), name:head.indexOf("name"), price:head.indexOf("price"), stock:head.indexOf("stock")};
+    if(idx.sku<0 || idx.name<0){ alert("Header wajib: sku,name[,price,stock]"); return; }
+    let added=0, updated=0, skipped=0;
+    for(const line of lines){
+      const cols = line.match(/("([^"]|"")*"|[^,]+)/g) || [];
+      const get = (i)=> (cols[i]||"").replace(/^"|"$/g,"").replace(/""./g,'"').trim();
+      const sku = get(idx.sku), name = get(idx.name);
+      if(!sku || !name){ skipped++; continue; }
+      const price = parseInt(get(idx.price)||"0",10);
+      const stock = parseInt(get(idx.stock)||"0",10);
+      const exist = core.productBySKU(sku);
+      if(exist){
+        exist.name = name; exist.price=price; exist.stock=stock; exist.updatedAt=core.ts();
+        try{ core.saveProduct(exist); updated++; }catch(e){ skipped++; }
+      } else {
+        try{ core.saveProduct({id:core.uid(), sku, name, price, stock, createdAt:core.ts(), updatedAt:core.ts()}); added++; }catch(e){ skipped++; }
+      }
+    }
+    alert(`Import selesai. Tambah: ${added}, Update: ${updated}, Skip: ${skipped}`);
+    render(); e.target.value="";
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

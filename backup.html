@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Backup & Restore — Azizi POS</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="backup">
+<header class="topbar">
+  <div class="brand">Azizi POS — Offline</div>
+  <nav class="nav">
+    <a href="dashboard.html" id="nav-dashboard">Dashboard</a>
+    <a href="products.html" id="nav-products">Produk</a>
+    <a href="purchase.html" id="nav-purchase">Stok IN</a>
+    <a href="pos.html" id="nav-pos">POS</a>
+    <a href="reports.html" id="nav-reports">Laporan</a>
+    <a href="cash.html" id="nav-cash">Kasir</a>
+    <a href="settings.html" id="nav-settings">Pengaturan</a>
+    <a href="backup.html" id="nav-backup">Backup</a>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="alert"><strong>Perhatian:</strong> Versi offline (HTML+CSS+JS) — data disimpan di <em>LocalStorage</em>.</div>
+
+  <section>
+    <h2>Backup & Restore</h2>
+    <div class="card">
+      <div class="row gap">
+        <button id="btnBackup">Unduh Backup (JSON)</button>
+        <input type="file" id="restoreFile" accept=".json">
+        <button id="btnRestore">Pulihkan</button>
+        <button id="btnReset" class="danger">Factory Reset</button>
+      </div>
+      <p class="hint">Backup mencakup: products, sales, moves, settings, invoiceCounter, cash.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <small>&copy; <span id="year"></span> Azizi POS — Offline HTML+CSS+JS.</small>
+</footer>
+
+<script src="js/core.js"></script>
+<script>
+document.getElementById('nav-backup')?.classList.add('active');
+document.getElementById('year').textContent = new Date().getFullYear();
+
+(function(){
+  if(!window.DB || !window.core){
+    console.warn('core.js belum dimuat.');
+    return;
+  }
+
+  document.getElementById("btnBackup").addEventListener("click", ()=>{
+    const data = {
+      products: DB.products,
+      sales: DB.sales,
+      moves: DB.moves,
+      settings: DB.settings,
+      invoiceCounter: DB.invoiceCounter,
+      cash: DB.cash
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `azizi_pos_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  document.getElementById("btnRestore").addEventListener("click", async ()=>{
+    const f = document.getElementById("restoreFile").files[0];
+    if(!f){ alert("Pilih file backup (.json) terlebih dahulu."); return; }
+    try{
+      const text = await f.text();
+      const data = JSON.parse(text);
+      if(data.products) DB.products = data.products;
+      if(data.sales) DB.sales = data.sales;
+      if(data.moves) DB.moves = data.moves;
+      if(data.settings) DB.settings = data.settings;
+      if(data.invoiceCounter) DB.invoiceCounter = data.invoiceCounter;
+      if(data.cash) DB.cash = data.cash;
+      alert("Restore berhasil.");
+    }catch(e){
+      alert("Gagal restore: " + (e.message||e));
+    }
+  });
+
+  document.getElementById("btnReset").addEventListener("click", ()=>{
+    if(!confirm("Factory reset? Semua data LocalStorage akan dihapus.")) return;
+    localStorage.removeItem('az_pos_products');
+    localStorage.removeItem('az_pos_sales');
+    localStorage.removeItem('az_pos_moves');
+    localStorage.removeItem('az_pos_settings');
+    localStorage.removeItem('az_pos_invoice_counter');
+    localStorage.removeItem('az_pos_cash_sessions');
+    alert("Sudah di-reset. Halaman akan reload.");
+    location.reload();
+  });
+})();
+</script>
+</body>
+</html>

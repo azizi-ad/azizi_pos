@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kasir — Azizi POS</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="cash">
+<header class="topbar">
+  <div class="brand">Azizi POS — Offline</div>
+  <nav class="nav">
+    <a href="dashboard.html" id="nav-dashboard">Dashboard</a>
+    <a href="products.html" id="nav-products">Produk</a>
+    <a href="purchase.html" id="nav-purchase">Stok IN</a>
+    <a href="pos.html" id="nav-pos">POS</a>
+    <a href="reports.html" id="nav-reports">Laporan</a>
+    <a href="cash.html" id="nav-cash">Kasir</a>
+    <a href="settings.html" id="nav-settings">Pengaturan</a>
+    <a href="backup.html" id="nav-backup">Backup</a>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="alert"><strong>Perhatian:</strong> Versi offline (HTML+CSS+JS) — data disimpan di <em>LocalStorage</em>.</div>
+
+  <section>
+    <h2>Kasir (Buka/Tutup)</h2>
+    <div class="card">
+      <div id="cashStatus" class="row"></div>
+      <div class="row gap">
+        <input type="number" id="cashOpenAmount" min="0" placeholder="Saldo awal (Rp)">
+        <button id="cashOpenBtn">Buka Kasir</button>
+        <input type="number" id="cashCloseActual" min="0" placeholder="Hitung fisik (Rp)">
+        <button id="cashCloseBtn">Tutup Kasir</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Riwayat Kasir</h3>
+      <table id="cashTable">
+        <thead><tr><th>Mulai</th><th>Akhir</th><th>Saldo Awal</th><th>Penjualan</th><th>Perkiraan Kas</th><th>Fisik</th><th>Selisih</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <small>&copy; <span id="year"></span> Azizi POS — Offline HTML+CSS+JS.</small>
+</footer>
+
+<script src="js/core.js"></script>
+<script>
+document.getElementById('nav-cash')?.classList.add('active');
+document.getElementById('year').textContent = new Date().getFullYear();
+
+(function(){
+  if(!window.DB || !window.core){
+    console.warn('core.js belum dimuat.');
+    return;
+  }
+  const $ = s => document.querySelector(s);
+
+  function render(){
+    const c = DB.cash || {open:null, history:[]};
+    const box = $("#cashStatus");
+    if(c.open){
+      const expected = (c.open.opening||0) + (c.open.salesTotal||0);
+      box.innerHTML = `<div>
+        <strong>Kasir sedang buka</strong><br>
+        Mulai: ${core.esc(c.open.start)} — Saldo awal: ${core.fmtRp(c.open.opening||0)}<br>
+        Penjualan: ${core.fmtRp(c.open.salesTotal||0)} | Transaksi: ${c.open.txCount||0}<br>
+        Perkiraan kas: ${core.fmtRp(expected)}
+      </div>`;
+    } else {
+      box.textContent = "Tidak ada sesi kasir aktif.";
+    }
+    const tbody = $("#cashTable tbody"); tbody.innerHTML="";
+    (c.history||[]).slice().reverse().forEach(s=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${core.esc(s.start||"")}</td>
+                      <td>${core.esc(s.end||"-")}</td>
+                      <td>${core.fmtRp(s.opening||0)}</td>
+                      <td>${core.fmtRp(s.salesTotal||0)}</td>
+                      <td>${core.fmtRp((s.opening||0)+(s.salesTotal||0))}</td>
+                      <td>${core.fmtRp(s.actual||0)}</td>
+                      <td>${core.fmtRp((s.actual||0)-((s.opening||0)+(s.salesTotal||0)))}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  $("#cashOpenBtn").addEventListener("click", ()=>{
+    const c = DB.cash || {open:null, history:[]};
+    if(c.open){ alert("Sesi masih aktif. Tutup dulu."); return; }
+    const opening = Math.max(0, Number($("#cashOpenAmount").value||0));
+    c.open = {start:core.ts(), opening, salesTotal:0, txCount:0};
+    DB.cash = c; render();
+  });
+
+  $("#cashCloseBtn").addEventListener("click", ()=>{
+    const c = DB.cash || {open:null, history:[]};
+    if(!c.open){ alert("Belum ada sesi aktif."); return; }
+    const actual = Math.max(0, Number($("#cashCloseActual").value||0));
+    const session = {...c.open};
+    session.end = core.ts();
+    session.actual = actual;
+    c.history.push(session);
+    c.open = null;
+    DB.cash = c;
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>POS — Azizi POS</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="pos">
+<header class="topbar">
+  <div class="brand">Azizi POS — Offline</div>
+  <nav class="nav">
+    <a href="dashboard.html" id="nav-dashboard">Dashboard</a>
+    <a href="products.html" id="nav-products">Produk</a>
+    <a href="purchase.html" id="nav-purchase">Stok IN</a>
+    <a href="pos.html" id="nav-pos">POS</a>
+    <a href="reports.html" id="nav-reports">Laporan</a>
+    <a href="cash.html" id="nav-cash">Kasir</a>
+    <a href="settings.html" id="nav-settings">Pengaturan</a>
+    <a href="backup.html" id="nav-backup">Backup</a>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="alert"><strong>Perhatian:</strong> Versi offline (HTML+CSS+JS) — data disimpan di <em>LocalStorage</em>.</div>
+
+  <section>
+    <div class="row between">
+      <h2>POS</h2>
+      <div class="row gap">
+        <input type="text" id="posSearch" placeholder="Cari produk... (F2)" aria-label="Cari produk">
+        <button id="posClear" class="secondary">Kosongkan Keranjang</button>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h3>Produk</h3>
+        <table id="posProdTable">
+          <thead><tr><th>Nama</th><th>Harga</th><th>Stok</th><th>Tambah</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Keranjang</h3>
+        <table id="cartTable">
+          <thead><tr><th>Item</th><th>Qty</th><th>Harga</th><th>Sub</th><th></th></tr></thead>
+          <tbody></tbody>
+          <tfoot>
+            <tr><th colspan="3" class="right">Subtotal</th><th id="cartSubtotal">Rp 0</th><th></th></tr>
+            <tr>
+              <th colspan="3" class="right">Diskon
+                <select id="discType" aria-label="Tipe Diskon">
+                  <option value="amount">Rp</option>
+                  <option value="percent">%</option>
+                </select>
+              </th>
+              <th><input type="number" id="discValue" min="0" value="0"></th><th></th>
+            </tr>
+            <tr>
+              <th colspan="3" class="right">Pajak (%)</th>
+              <th><input type="number" id="taxPercent" min="0" value="0"></th><th></th>
+            </tr>
+            <tr><th colspan="3" class="right">Total</th><th id="cartTotal">Rp 0</th><th></th></tr>
+          </tfoot>
+        </table>
+        <div class="row end gap">
+          <label for="paid">Bayar</label>
+          <input type="number" id="paid" min="0" value="0">
+          <button id="checkoutBtn" title="F9">Checkout</button>
+        </div>
+        <small class="hint">Shortcut: F2 cari, F9 checkout, Del hapus item terakhir, Esc tutup dialog.</small>
+      </div>
+    </div>
+
+    <div id="receiptHost">
+      <dialog id="receiptDialog">
+        <div id="receipt" class="receipt">
+          <div class="center"><strong id="storeName"></strong></div>
+          <div id="storeAddr" class="center"></div>
+          <div id="r-inv"></div>
+          <div id="r-time"></div>
+          <hr>
+          <div id="r-items"></div>
+          <hr>
+          <div id="r-subtotal"></div>
+          <div id="r-disc"></div>
+          <div id="r-tax"></div>
+          <div id="r-total"></div>
+          <div id="r-paid"></div>
+          <div id="r-change"></div>
+          <div class="center" id="storeFooter"></div>
+        </div>
+        <menu class="row end gap">
+          <button onclick="window.print()">Cetak</button>
+          <button id="receiptClose">Tutup</button>
+        </menu>
+      </dialog>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <small>&copy; <span id="year"></span> Azizi POS — Offline HTML+CSS+JS.</small>
+</footer>
+
+<script src="js/core.js"></script>
+<script>
+document.getElementById('nav-pos')?.classList.add('active');
+document.getElementById('year').textContent = new Date().getFullYear();
+
+(function(){
+  if(!window.DB || !window.core){
+    console.warn('core.js belum dimuat.');
+    return;
+  }
+  const $ = s => document.querySelector(s);
+  let cart = [];
+
+  function computeTotals(){
+    const subtotal = cart.reduce((a,b)=>a+(b.price||0)*(b.qty||0),0);
+    const discType = $("#discType").value;
+    const discVal = Math.max(0, Number($("#discValue").value||0));
+    let disc = 0;
+    if(discType === "percent"){ disc = Math.min(100, discVal) / 100 * subtotal; }
+    else { disc = Math.min(subtotal, discVal); }
+    const afterDisc = subtotal - disc;
+    const taxPct = Math.max(0, Number($("#taxPercent").value||0));
+    const tax = afterDisc * (taxPct/100);
+    const total = Math.round(afterDisc + tax);
+    return {subtotal, disc, tax, total};
+  }
+
+  function renderCart(){
+    const tbody = $("#cartTable tbody"); tbody.innerHTML="";
+    cart.forEach((it,idx)=>{
+      const sub = (it.price||0)*(it.qty||0);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${core.esc(it.name)}</td>
+                      <td><input type="number" min="1" max="${it.max}" value="${it.qty}" data-qty="${idx}" style="width:80px"></td>
+                      <td>${core.fmtRp(it.price||0)}</td>
+                      <td>${core.fmtRp(sub)}</td>
+                      <td><button class="danger" data-rem="${idx}">Hapus</button></td>`;
+      tbody.appendChild(tr);
+    });
+    const t = computeTotals();
+    $("#cartSubtotal").textContent = core.fmtRp(t.subtotal);
+    $("#cartTotal").textContent = core.fmtRp(t.total);
+    $("#paid").min = t.total;
+    if(parseInt($("#paid").value||"0",10) < t.total) $("#paid").value = t.total;
+  }
+
+  function renderProducts(){
+    const q = ($("#posSearch").value||"").toLowerCase();
+    const tbody = $("#posProdTable tbody"); tbody.innerHTML="";
+    // Sync default tax with settings
+    if(Number($("#taxPercent").value||0) !== Number(DB.settings.taxDefault||0)){
+      $("#taxPercent").value = Number(DB.settings.taxDefault||0);
+    }
+    (DB.products||[])
+      .filter(p => (p.stock||0) > 0 && ((p.name||'').toLowerCase().includes(q) || (p.sku||'').toLowerCase().includes(q)))
+      .sort((a,b)=> (a.name||'').localeCompare(b.name||''))
+      .forEach(p=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${core.esc(p.name||'')}</td>
+                        <td>${core.fmtRp(p.price||0)}</td>
+                        <td>${p.stock||0}</td>
+                        <td><button data-add="${p.id}">Tambah</button></td>`;
+        tbody.appendChild(tr);
+      });
+  }
+
+  // Add to cart
+  $("#posProdTable").addEventListener("click", (e)=>{
+    const id = e.target?.dataset?.add; if(!id) return;
+    const p = core.productById(id); if(!p || (p.stock||0)<=0) return;
+    const idx = cart.findIndex(x=>x.productId===id);
+    if(idx>=0){ cart[idx].qty = Math.min(cart[idx].qty+1, p.stock||1); }
+    else { cart.push({productId:id, name:p.name, price:p.price||0, qty:1, max:p.stock||1}); }
+    renderCart();
+  });
+
+  // Edit qty
+  $("#cartTable").addEventListener("input", (e)=>{
+    const i = e.target?.dataset?.qty; if(i===undefined) return;
+    const idx = parseInt(i,10); let v = parseInt(e.target.value||"1",10);
+    v = Math.max(1, Math.min(v, cart[idx].max||1)); cart[idx].qty = v; renderCart();
+  });
+
+  // Remove item
+  $("#cartTable").addEventListener("click", (e)=>{
+    const i = e.target?.dataset?.rem; if(i===undefined) return;
+    cart.splice(parseInt(i,10),1); renderCart();
+  });
+
+  // Clear cart
+  $("#posClear").addEventListener("click", ()=>{ if(confirm("Kosongkan keranjang?")){ cart=[]; renderCart(); } });
+
+  // Recompute on discounts/tax changes
+  $("#discType").addEventListener("change", renderCart);
+  $("#discValue").addEventListener("input", renderCart);
+  $("#taxPercent").addEventListener("input", renderCart);
+
+  // Search
+  $("#posSearch").addEventListener("input", renderProducts);
+
+  // Checkout
+  $("#checkoutBtn").addEventListener("click", ()=>{
+    if(cart.length===0) return alert("Keranjang kosong.");
+    const totals = computeTotals();
+    const paid = parseInt($("#paid").value||"0",10);
+    if(paid < totals.total) return alert("Uang bayar kurang.");
+    const change = paid - totals.total;
+    const invoice = core.nextInvoice();
+
+    // update stocks & moves
+    const moves = DB.moves || []; const products = DB.products || [];
+    cart.forEach(it=>{
+      const p = products.find(x=>x.id===it.productId);
+      if(p){ p.stock = Math.max(0, (p.stock||0)-it.qty); p.updatedAt = core.ts();
+        moves.push({id:core.uid(), productId:p.id, qty:it.qty, type:"OUT", note:"Penjualan "+invoice, createdAt:core.ts()});
+      }
+    });
+    DB.products = products; DB.moves = moves;
+
+    // save sale
+    const sales = DB.sales || [];
+    sales.push({
+      id:core.uid(), invoice,
+      items:cart.map(x=>({productId:x.productId,name:x.name,qty:x.qty,price:x.price})),
+      subtotal: totals.subtotal, discount: totals.disc, tax: totals.tax,
+      total: totals.total, paid, change, createdAt:core.ts()
+    });
+    DB.sales = sales;
+
+    // cash session update if opened
+    const cash = DB.cash || {open:null, history:[]};
+    if(cash.open){ cash.open.salesTotal = (cash.open.salesTotal||0) + totals.total; cash.open.txCount = (cash.open.txCount||0) + 1; DB.cash = cash; }
+
+    // render receipt
+    const st = DB.settings || {};
+    $("#storeName").textContent = st.storeName||"Azizi POS";
+    $("#storeAddr").textContent = (st.storeAddr||"");
+    $("#storeFooter").textContent = (st.storeFooter||"Terima kasih!");
+    $("#r-inv").textContent = "No: "+invoice;
+    $("#r-time").textContent = "Waktu: "+core.ts();
+    const itemsDiv = $("#r-items"); itemsDiv.innerHTML="";
+    cart.forEach(it=>{
+      const d = document.createElement("div");
+      d.textContent = `${it.name} x ${it.qty} — ${core.fmtRp((it.price||0)*it.qty)}`;
+      itemsDiv.appendChild(d);
+    });
+    $("#r-subtotal").textContent = "Subtotal: "+core.fmtRp(totals.subtotal);
+    $("#r-disc").textContent = "Diskon: "+core.fmtRp(totals.disc);
+    $("#r-tax").textContent = "Pajak: "+core.fmtRp(totals.tax);
+    $("#r-total").textContent = "Total: "+core.fmtRp(totals.total);
+    $("#r-paid").textContent = "Bayar: "+core.fmtRp(paid);
+    $("#r-change").textContent = "Kembali: "+core.fmtRp(change);
+    document.getElementById("receiptDialog").showModal();
+
+    cart=[]; renderProducts(); renderCart();
+  });
+
+  document.getElementById("receiptClose").addEventListener("click", ()=> document.getElementById("receiptDialog").close());
+
+  // Shortcuts
+  window.addEventListener("keydown", (e)=>{
+    if(e.key==="F2"){ e.preventDefault(); document.getElementById("posSearch").focus(); }
+    if(e.key==="F9"){ e.preventDefault(); document.getElementById("checkoutBtn").click(); }
+    if(e.key==="Delete"){ if(cart.length>0){ cart.pop(); renderCart(); } }
+    if(e.key==="Escape"){ document.querySelectorAll("dialog[open]").forEach(d=> d.close("cancel")); }
+  });
+
+  renderProducts(); renderCart();
+})();
+</script>
+</body>
+</html>

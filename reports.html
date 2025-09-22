@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Laporan — Azizi POS</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="reports">
+<header class="topbar">
+  <div class="brand">Azizi POS — Offline</div>
+  <nav class="nav">
+    <a href="dashboard.html" id="nav-dashboard">Dashboard</a>
+    <a href="products.html" id="nav-products">Produk</a>
+    <a href="purchase.html" id="nav-purchase">Stok IN</a>
+    <a href="pos.html" id="nav-pos">POS</a>
+    <a href="reports.html" id="nav-reports">Laporan</a>
+    <a href="cash.html" id="nav-cash">Kasir</a>
+    <a href="settings.html" id="nav-settings">Pengaturan</a>
+    <a href="backup.html" id="nav-backup">Backup</a>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="alert"><strong>Perhatian:</strong> Versi offline (HTML+CSS+JS) — data disimpan di <em>LocalStorage</em>.</div>
+
+  <section>
+    <div class="row between">
+      <h2>Laporan Penjualan</h2>
+      <div class="row gap">
+        <label for="repFrom">Dari</label><input type="date" id="repFrom">
+        <label for="repTo">Sampai</label><input type="date" id="repTo">
+        <button id="repApply">Terapkan</button>
+        <button id="repCsv" class="secondary">Unduh CSV</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <table id="salesTable">
+        <thead><tr><th>No Faktur</th><th>Total</th><th>Bayar</th><th>Kembali</th><th>Waktu</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <small>&copy; <span id="year"></span> Azizi POS — Offline HTML+CSS+JS.</small>
+</footer>
+
+<script src="js/core.js"></script>
+<script>
+document.getElementById('nav-reports')?.classList.add('active');
+document.getElementById('year').textContent = new Date().getFullYear();
+
+(function(){
+  if(!window.DB || !window.core){
+    console.warn('core.js belum dimuat.');
+    return;
+  }
+  const $ = s => document.querySelector(s);
+
+  function initDates(){
+    const d = new Date();
+    const first = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0,10);
+    const today = d.toISOString().slice(0,10);
+    $("#repFrom").value = first;
+    $("#repTo").value = today;
+  }
+
+  function render(){
+    const from = $("#repFrom").value || core.todayStr();
+    const to   = $("#repTo").value   || core.todayStr();
+    const tbody = $("#salesTable tbody");
+    tbody.innerHTML = "";
+    (DB.sales||[])
+      .filter(s => {
+        const d = (s.createdAt||"").slice(0,10);
+        return d >= from && d <= to;
+      })
+      .sort((a,b)=> (b.createdAt||"").localeCompare(a.createdAt||""))
+      .forEach(s=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${core.esc(s.invoice||"")}</td>
+                        <td>${core.fmtRp(s.total||0)}</td>
+                        <td>${core.fmtRp(s.paid||0)}</td>
+                        <td>${core.fmtRp(s.change||0)}</td>
+                        <td>${core.esc(s.createdAt||"")}</td>`;
+        tbody.appendChild(tr);
+      });
+  }
+
+  function downloadCsv(){
+    const from = $("#repFrom").value || core.todayStr();
+    const to   = $("#repTo").value   || core.todayStr();
+    const rows = [["invoice","subtotal","discount","tax","total","paid","change","created_at"]];
+    (DB.sales||[]).forEach(s=>{
+      const d = (s.createdAt||"").slice(0,10);
+      if(d>=from && d<=to){
+        rows.push([s.invoice||"", s.subtotal||0, s.discount||0, s.tax||0, s.total||0, s.paid||0, s.change||0, s.createdAt||""]);
+      }
+    });
+    const csv = rows.map(r=>r.join(",")).join("\n");
+    const blob = new Blob([csv], {type:"text/csv"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `sales_${from}_to_${to}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  $("#repApply").addEventListener("click", render);
+  $("#repCsv").addEventListener("click", downloadCsv);
+
+  initDates();
+  render();
+})();
+</script>
+</body>
+</html>

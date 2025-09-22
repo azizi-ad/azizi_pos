@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pengaturan — Azizi POS</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="settings">
+<header class="topbar">
+  <div class="brand">Azizi POS — Offline</div>
+  <nav class="nav">
+    <a href="dashboard.html" id="nav-dashboard">Dashboard</a>
+    <a href="products.html" id="nav-products">Produk</a>
+    <a href="purchase.html" id="nav-purchase">Stok IN</a>
+    <a href="pos.html" id="nav-pos">POS</a>
+    <a href="reports.html" id="nav-reports">Laporan</a>
+    <a href="cash.html" id="nav-cash">Kasir</a>
+    <a href="settings.html" id="nav-settings">Pengaturan</a>
+    <a href="backup.html" id="nav-backup">Backup</a>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="alert"><strong>Perhatian:</strong> Versi offline (HTML+CSS+JS) — data disimpan di <em>LocalStorage</em>.</div>
+
+  <section>
+    <h2>Pengaturan Toko</h2>
+    <div class="card narrow">
+      <label for="setStoreName">Nama Toko</label>
+      <input type="text" id="setStoreName" placeholder="Azizi Cell">
+      <label for="setStoreAddr">Alamat / Kontak</label>
+      <textarea id="setStoreAddr" rows="3" placeholder="Alamat, Telepon/WA"></textarea>
+      <label for="setStoreFooter">Footer Struk</label>
+      <input type="text" id="setStoreFooter" placeholder="Terima kasih telah berbelanja">
+      <label for="setInvPrefix">Prefix Invoice</label>
+      <input type="text" id="setInvPrefix" placeholder="INV">
+      <label for="setTaxDefault">Pajak default (%)</label>
+      <input type="number" id="setTaxDefault" min="0" value="0">
+      <div class="row end"><button id="saveSettings">Simpan Pengaturan</button></div>
+      <small class="hint">Nomor invoice otomatis: PREFIX-YYYY-0001 (reset tiap tahun). Pajak default akan otomatis terisi di halaman POS.</small>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <small>&copy; <span id="year"></span> Azizi POS — Offline HTML+CSS+JS.</small>
+</footer>
+
+<script src="js/core.js"></script>
+<script>
+document.getElementById('nav-settings')?.classList.add('active');
+document.getElementById('year').textContent = new Date().getFullYear();
+
+(function(){
+  if(!window.DB || !window.core){
+    console.warn('core.js belum dimuat.');
+    return;
+  }
+  const $ = s => document.querySelector(s);
+  function render(){
+    const s = DB.settings || {};
+    $("#setStoreName").value   = s.storeName || "";
+    $("#setStoreAddr").value   = s.storeAddr || "";
+    $("#setStoreFooter").value = s.storeFooter || "";
+    $("#setInvPrefix").value   = s.invPrefix || "INV";
+    $("#setTaxDefault").value  = s.taxDefault || 0;
+  }
+  document.getElementById("saveSettings").addEventListener("click", ()=>{
+    DB.settings = {
+      storeName: $("#setStoreName").value.trim(),
+      storeAddr: $("#setStoreAddr").value.trim(),
+      storeFooter: $("#setStoreFooter").value.trim(),
+      invPrefix: ($("#setInvPrefix").value.trim() || "INV").toUpperCase(),
+      taxDefault: Math.max(0, Number($("#setTaxDefault").value||0))
+    };
+    alert("Pengaturan disimpan.");
+  });
+  render();
+})();
+</script>
+</body>
+</html>

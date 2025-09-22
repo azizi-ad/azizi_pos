@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stok IN — Azizi POS</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="purchase">
+<header class="topbar">
+  <div class="brand">Azizi POS — Offline</div>
+  <nav class="nav">
+    <a href="dashboard.html" id="nav-dashboard">Dashboard</a>
+    <a href="products.html" id="nav-products">Produk</a>
+    <a href="purchase.html" id="nav-purchase">Stok IN</a>
+    <a href="pos.html" id="nav-pos">POS</a>
+    <a href="reports.html" id="nav-reports">Laporan</a>
+    <a href="cash.html" id="nav-cash">Kasir</a>
+    <a href="settings.html" id="nav-settings">Pengaturan</a>
+    <a href="backup.html" id="nav-backup">Backup</a>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="alert"><strong>Perhatian:</strong> Versi offline (HTML+CSS+JS) — data disimpan di <em>LocalStorage</em>.</div>
+
+  <section>
+    <h2>Stok IN</h2>
+    <div class="card">
+      <div class="row gap">
+        <select id="purchaseProduct" aria-label="Pilih produk"></select>
+        <input type="number" id="purchaseQty" min="1" value="1" placeholder="Qty">
+        <input type="text" id="purchaseNote" placeholder="Catatan" value="Pembelian">
+        <button id="purchaseBtn">Tambah Stok</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Pergerakan Stok Terbaru</h3>
+      <table id="movesTable">
+        <thead><tr><th>Waktu</th><th>Produk</th><th>Qty</th><th>Jenis</th><th>Catatan</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <small>&copy; <span id="year"></span> Azizi POS — Offline HTML+CSS+JS.</small>
+</footer>
+
+<script src="js/core.js"></script>
+<script>
+document.getElementById('nav-purchase')?.classList.add('active');
+document.getElementById('year').textContent = new Date().getFullYear();
+
+(function(){
+  if(!window.DB || !window.core){
+    console.warn('core.js belum dimuat.');
+    return;
+  }
+  const $ = s => document.querySelector(s);
+
+  function renderProducts(){
+    const sel = $("#purchaseProduct");
+    const opts = (DB.products||[]).map(p => `<option value="${p.id}">${core.esc(p.name||'')} (Stok: ${p.stock||0})</option>`).join("");
+    sel.innerHTML = `<option value="">— pilih produk —</option>` + opts;
+  }
+
+  function renderMoves(){
+    const tbody = $("#movesTable tbody");
+    tbody.innerHTML = "";
+    const moves = (DB.moves||[]).slice().reverse().slice(0,30);
+    moves.forEach(m => {
+      const prod = core.productById(m.productId) || {name:'(terhapus)'};
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${core.esc(m.createdAt||'')}</td>
+                      <td>${core.esc(prod.name||'')}</td>
+                      <td>${m.qty||0}</td>
+                      <td>${core.esc(m.type||'')}</td>
+                      <td>${core.esc(m.note||'')}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  $("#purchaseBtn")?.addEventListener("click", ()=>{
+    const id = document.getElementById("purchaseProduct").value;
+    const qty = Math.max(1, parseInt(document.getElementById("purchaseQty").value||"1",10));
+    const note = document.getElementById("purchaseNote").value || "Pembelian";
+    if(!id){ alert("Pilih produk terlebih dahulu."); return; }
+    const p = core.productById(id);
+    if(!p){ alert("Produk tidak ditemukan."); return; }
+    p.stock = (p.stock||0) + qty;
+    p.updatedAt = core.ts();
+    try{
+      core.saveProduct(p);
+      const mv = DB.moves || [];
+      mv.push({id:core.uid(), productId:id, qty, type:"IN", note, createdAt:core.ts()});
+      DB.moves = mv;
+      renderProducts();
+      renderMoves();
+      alert("Stok berhasil ditambahkan.");
+    }catch(e){
+      alert(e.message||e);
+    }
+  });
+
+  renderProducts();
+  renderMoves();
+})();
+</script>
+</body>
+</html>
